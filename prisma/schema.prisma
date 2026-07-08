@@ -1,0 +1,69 @@
+// People's Priorities — data model
+// Default datasource is SQLite for zero-config local dev.
+// For production on Vercel, switch provider to "postgresql" and set
+// DATABASE_URL to a Neon / Supabase / Vercel Postgres connection string.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Ward {
+  id                String   @id @default(cuid())
+  name              String
+  population        Int
+  lat               Float
+  lng               Float
+
+  // Demographic / infrastructure indicators used by the priority engine
+  schoolCount           Int
+  avgSchoolEnrollment  Int
+  avgSchoolDistanceKm  Float
+  healthCentreCount     Int
+  literacyRatePct       Float
+  unemploymentRatePct   Float
+  roadConditionIndex    Float // 0 (poor) - 10 (excellent)
+  waterAccessPct        Float
+  electrificationPct    Float
+
+  submissions       Submission[]
+  createdAt         DateTime @default(now())
+}
+
+model Submission {
+  id            String   @id @default(cuid())
+  channel       String   // web | voice | whatsapp | portal | letter | meeting
+  language      String   // en | hi | te | ...
+  rawText       String
+  translatedText String?
+  citizenName   String?
+  contact       String?
+  photoUrl      String?
+
+  wardId        String?
+  ward          Ward?    @relation(fields: [wardId], references: [id])
+
+  category      String   // Education | Health | Roads | Water | Electricity | Sanitation | Employment | Safety | Other
+  theme         String   // short normalized theme label, e.g. "school-upgrade"
+  keywords      String   // comma separated
+  urgency       Int      // 1-5, derived by NLP
+  sentiment     Float    // -1..1
+
+  status        String   @default("new") // new | reviewed | actioned | archived
+
+  createdAt     DateTime @default(now())
+}
+
+model DevelopmentProject {
+  id          String   @id @default(cuid())
+  title       String
+  category    String
+  wardId      String?
+  description String
+  estimatedCostLakhs Float?
+  proposedBy  String?  // e.g. "Local Development Plan 2026"
+  createdAt   DateTime @default(now())
+}
