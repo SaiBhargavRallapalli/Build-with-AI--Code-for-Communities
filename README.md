@@ -8,6 +8,9 @@ proposed projects. This app gives citizens a single multilingual channel to subm
 (voice, text, or photo) and gives MPs an AI-analyzed, data-backed, ranked priority list — so
 decisions can be defended with evidence, not guesswork.
 
+**Presentation:** [docs/peoples-priorities-presentation.pdf](docs/peoples-priorities-presentation.pdf)
+([source .pptx](docs/peoples-priorities-presentation.pptx))
+
 ## What it does
 
 - **Citizen portal** (`/`) — submit a development suggestion in English, Hindi, or Telugu, by
