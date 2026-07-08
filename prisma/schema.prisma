@@ -1,14 +1,15 @@
 // People's Priorities — data model
-// Default datasource is SQLite for zero-config local dev.
-// For production on Vercel, switch provider to "postgresql" and set
-// DATABASE_URL to a Neon / Supabase / Vercel Postgres connection string.
+// Postgres (Supabase via Vercel integration). `url` is the pooled
+// (PgBouncer) connection used at runtime; `directUrl` is the direct
+// connection Prisma needs for migrations/db push.
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("POSTGRES_PRISMA_URL")
+  directUrl = env("POSTGRES_URL_NON_POOLING")
 }
 
 model Ward {

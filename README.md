@@ -37,58 +37,56 @@ decisions can be defended with evidence, not guesswork.
 
 ## Tech stack
 
-Next.js 14 (App Router, TypeScript), Tailwind CSS, Prisma ORM, Recharts, React-Leaflet. No paid
-services required to run or demo.
+Next.js (App Router, TypeScript), Tailwind CSS, Prisma ORM, Supabase Postgres, Recharts,
+React-Leaflet.
 
 ## Local development
 
-```bash
-npm install
-npm run db:push     # creates the local SQLite database from prisma/schema.prisma
-npm run db:seed      # loads a sample constituency (5 wards + 25 real-world-style submissions)
-npm run dev
-```
+The app uses Supabase Postgres (provisioned via the Vercel integration) as its datastore, since
+Vercel's serverless filesystem is read-only and can't host a SQLite file in production.
+
+1. Link this repo to your Vercel project, then pull its environment variables (this fetches the
+   `POSTGRES_PRISMA_URL` / `POSTGRES_URL_NON_POOLING` values Vercel's Supabase integration set up):
+   ```bash
+   npx vercel link
+   npx vercel env pull .env
+   ```
+   Alternatively, copy them manually from Vercel → your project → **Storage** → your Supabase
+   database → the ".env.local" tab, into `.env` (see `.env.example`).
+2. Install dependencies and set up the database:
+   ```bash
+   npm install
+   npm run db:push     # applies prisma/schema.prisma to your Supabase database
+   npm run db:seed     # loads a sample constituency (5 wards + 25 real-world-style submissions)
+   npm run dev
+   ```
 
 Open http://localhost:3000 for the citizen portal and http://localhost:3000/dashboard for the MP
 dashboard.
 
-By default the app uses SQLite (`prisma/schema.prisma`, `DATABASE_URL="file:./dev.db"`) so it
-runs with zero external setup.
-
 ### Optional: enable LLM-powered analysis
 
-Copy `.env.example` to `.env` and set `GROQ_API_KEY` (get a free key at
-[console.groq.com](https://console.groq.com)) and optionally `GROQ_MODEL` (defaults to
-`qwen/qwen3-32b`). `OPENAI_API_KEY` is supported as a secondary fallback. Without either key, the
-app uses its built-in rule-based multilingual NLP fallback (see `lib/nlp.ts`) — fully functional,
-no cost.
+Set `GROQ_API_KEY` in `.env` (get a free key at [console.groq.com](https://console.groq.com)) and
+optionally `GROQ_MODEL` (defaults to `qwen/qwen3-32b`). `OPENAI_API_KEY` is supported as a
+secondary fallback. Without either key, the app uses its built-in rule-based multilingual NLP
+fallback (see `lib/nlp.ts`) — fully functional, no cost.
 
 ## Deploying to Vercel
 
-Vercel's serverless filesystem is read-only in production, so SQLite won't persist writes across
-requests there. Before deploying, switch to a serverless-friendly Postgres database (free tier is
-enough for a hackathon demo):
-
-1. Create a free Postgres database — [Neon](https://neon.tech), [Supabase](https://supabase.com),
-   or Vercel's own Postgres integration all work.
-2. In `prisma/schema.prisma`, change:
-   ```prisma
-   datasource db {
-     provider = "postgresql"   // was "sqlite"
-     url      = env("DATABASE_URL")
-   }
-   ```
-3. Set `DATABASE_URL` to your Postgres connection string, both locally (`.env`) and in your
-   Vercel project's Environment Variables.
-4. Push the schema and seed the database:
+1. Push this repo to GitHub and import it in [vercel.com/new](https://vercel.com/new), or use the
+   project you already linked above.
+2. In the Vercel project, confirm the Supabase integration's environment variables
+   (`POSTGRES_PRISMA_URL`, `POSTGRES_URL_NON_POOLING`) are set for the Production/Preview
+   environments — the integration does this automatically when you attach the database.
+3. Add `GROQ_API_KEY` (and `GROQ_MODEL`) or `OPENAI_API_KEY` as Vercel environment variables for
+   higher-accuracy analysis (optional but recommended).
+4. Push the schema and seed data against the same database Vercel will use (run once, from your
+   machine with `.env` pointing at the Supabase instance):
    ```bash
    npm run db:push
    npm run db:seed
    ```
-5. Push this repo to GitHub and import it in [vercel.com/new](https://vercel.com/new) — no other
-   configuration needed. `npm run build` already runs `prisma generate` for you.
-6. (Optional) Add `GROQ_API_KEY` (and `GROQ_MODEL`) or `OPENAI_API_KEY` as Vercel environment
-   variables for higher-accuracy analysis.
+5. Deploy — `npm run build` already runs `prisma generate` for you, no other configuration needed.
 
 ## Project structure
 
