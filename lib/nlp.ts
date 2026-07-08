@@ -2,9 +2,10 @@
 //
 // Works fully offline / free using rule-based keyword matching across
 // English, Hindi (Devanagari + Romanized) and Telugu (Telugu script +
-// Romanized). If OPENAI_API_KEY is set, category/theme/urgency/sentiment
-// are instead derived from a single structured OpenAI call for higher
-// accuracy, with this module as the automatic fallback on any failure.
+// Romanized). If GROQ_API_KEY or OPENAI_API_KEY is set, category/theme/
+// urgency/sentiment are instead derived from a single structured LLM call
+// for higher accuracy (Groq is tried first, then OpenAI), with this module
+// as the automatic fallback on any failure.
 
 export type Category =
   | "Education"
@@ -196,54 +197,83 @@ function ruleBasedAnalysis(text: string): AnalysisResult {
   };
 }
 
-async function openAiAnalysis(text: string): Promise<AnalysisResult | null> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return null;
+const CLASSIFIER_SYSTEM_PROMPT =
+  "You classify citizen development requests submitted to a Member of Parliament. " +
+  "The text may be in English, Hindi, or Telugu. Respond ONLY with strict JSON, no <think> tags or commentary: " +
+  '{"category": one of ["Education","Health","Roads","Water","Electricity","Sanitation","Employment","Safety","Other"], ' +
+  '"theme": short-kebab-case-slug, "keywords": string[] (max 8, in original language or transliterated), ' +
+  '"urgency": integer 1-5, "sentiment": float -1..1, "translatedText": English translation of the submission}.';
 
+function parseClassifierContent(content: string): AnalysisResult | null {
+  // Some reasoning models (e.g. Qwen3) wrap chain-of-thought in <think> tags
+  // before the JSON payload — strip it and grab the JSON object.
+  const withoutThink = content.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  const jsonMatch = withoutThink.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) return null;
+
+  const parsed = JSON.parse(jsonMatch[0]);
+  return {
+    category: parsed.category ?? "Other",
+    theme: parsed.theme ?? "general-grievance",
+    keywords: Array.isArray(parsed.keywords) ? parsed.keywords.slice(0, 8) : [],
+    urgency: Math.max(1, Math.min(5, Number(parsed.urgency) || 1)),
+    sentiment: Math.max(-1, Math.min(1, Number(parsed.sentiment) || 0)),
+    translatedText: parsed.translatedText,
+  };
+}
+
+async function chatCompletionAnalysis(
+  text: string,
+  endpoint: string,
+  apiKey: string,
+  model: string,
+  extraBody: Record<string, unknown> = {},
+): Promise<AnalysisResult | null> {
   try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    const res = await fetch(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
-        response_format: { type: "json_object" },
+        model,
         messages: [
-          {
-            role: "system",
-            content:
-              "You classify citizen development requests submitted to a Member of Parliament. " +
-              "The text may be in English, Hindi, or Telugu. Respond ONLY with strict JSON: " +
-              '{"category": one of ["Education","Health","Roads","Water","Electricity","Sanitation","Employment","Safety","Other"], ' +
-              '"theme": short-kebab-case-slug, "keywords": string[] (max 8, in original language or transliterated), ' +
-              '"urgency": integer 1-5, "sentiment": float -1..1, "translatedText": English translation of the submission}.',
-          },
+          { role: "system", content: CLASSIFIER_SYSTEM_PROMPT },
           { role: "user", content: text },
         ],
         temperature: 0.2,
+        ...extraBody,
       }),
     });
     if (!res.ok) return null;
     const data = await res.json();
     const content = data.choices?.[0]?.message?.content;
     if (!content) return null;
-    const parsed = JSON.parse(content);
-    return {
-      category: parsed.category ?? "Other",
-      theme: parsed.theme ?? "general-grievance",
-      keywords: Array.isArray(parsed.keywords) ? parsed.keywords.slice(0, 8) : [],
-      urgency: Math.max(1, Math.min(5, Number(parsed.urgency) || 1)),
-      sentiment: Math.max(-1, Math.min(1, Number(parsed.sentiment) || 0)),
-      translatedText: parsed.translatedText,
-    };
+    return parseClassifierContent(content);
   } catch {
     return null;
   }
 }
 
+async function groqAnalysis(text: string): Promise<AnalysisResult | null> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) return null;
+  const model = process.env.GROQ_MODEL || "qwen/qwen3-32b";
+  return chatCompletionAnalysis(text, "https://api.groq.com/openai/v1/chat/completions", apiKey, model);
+}
+
+async function openAiAnalysis(text: string): Promise<AnalysisResult | null> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return null;
+  return chatCompletionAnalysis(text, "https://api.openai.com/v1/chat/completions", apiKey, "gpt-4o-mini", {
+    response_format: { type: "json_object" },
+  });
+}
+
 export async function analyzeSubmission(text: string): Promise<AnalysisResult> {
+  const groqResult = await groqAnalysis(text);
+  if (groqResult) return groqResult;
   const aiResult = await openAiAnalysis(text);
   if (aiResult) return aiResult;
   return ruleBasedAnalysis(text);

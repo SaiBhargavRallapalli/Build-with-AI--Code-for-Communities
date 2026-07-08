@@ -16,9 +16,9 @@ decisions can be defended with evidence, not guesswork.
 - **AI analysis** — every submission is automatically categorized (Education, Health, Roads,
   Water, Electricity, Sanitation, Employment, Safety), assigned a normalized "theme" so
   recurring requests cluster together, scored for urgency, and scored for sentiment. Works fully
-  offline with a built-in multilingual rule-based engine; automatically upgrades to OpenAI
-  (`gpt-4o-mini`) for higher accuracy classification/translation if `OPENAI_API_KEY` is set — no
-  code changes required either way.
+  offline with a built-in multilingual rule-based engine; automatically upgrades to an LLM for
+  higher accuracy classification/translation if `GROQ_API_KEY` (tried first, e.g. Qwen3-32B) or
+  `OPENAI_API_KEY` (`gpt-4o-mini`) is set — no code changes required either way.
 - **MP dashboard** (`/dashboard`) — recurring-theme chart, a demand-hotspot map (ward-level,
   OpenStreetMap/Leaflet, no API key needed), and a ranked priority table.
 - **Priority ranking engine** (`lib/priority.ts`) — blends four transparent, tunable signals into
@@ -55,10 +55,13 @@ dashboard.
 By default the app uses SQLite (`prisma/schema.prisma`, `DATABASE_URL="file:./dev.db"`) so it
 runs with zero external setup.
 
-### Optional: enable OpenAI-powered analysis
+### Optional: enable LLM-powered analysis
 
-Copy `.env.example` to `.env` and set `OPENAI_API_KEY`. Without it, the app uses its built-in
-rule-based multilingual NLP fallback (see `lib/nlp.ts`) — fully functional, no cost.
+Copy `.env.example` to `.env` and set `GROQ_API_KEY` (get a free key at
+[console.groq.com](https://console.groq.com)) and optionally `GROQ_MODEL` (defaults to
+`qwen/qwen3-32b`). `OPENAI_API_KEY` is supported as a secondary fallback. Without either key, the
+app uses its built-in rule-based multilingual NLP fallback (see `lib/nlp.ts`) — fully functional,
+no cost.
 
 ## Deploying to Vercel
 
@@ -84,7 +87,8 @@ enough for a hackathon demo):
    ```
 5. Push this repo to GitHub and import it in [vercel.com/new](https://vercel.com/new) — no other
    configuration needed. `npm run build` already runs `prisma generate` for you.
-6. (Optional) Add `OPENAI_API_KEY` as a Vercel environment variable for higher-accuracy analysis.
+6. (Optional) Add `GROQ_API_KEY` (and `GROQ_MODEL`) or `OPENAI_API_KEY` as Vercel environment
+   variables for higher-accuracy analysis.
 
 ## Project structure
 

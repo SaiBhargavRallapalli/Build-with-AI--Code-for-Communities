@@ -5,6 +5,7 @@ out
 .env*.local
 *.db
 *.db-journal
+*.tsbuildinfo
 .DS_Store
 next-env.d.ts
 .vercel
